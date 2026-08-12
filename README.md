@@ -20,10 +20,16 @@ kia-curator-guidebook/
 │  └─ 10-contact.html
 └─ assets/
    ├─ css/style.css                # 전 페이지 공통 디자인 시스템 (컬러/타이포/컴포넌트)
-   ├─ js/main.js                   # 모바일 메뉴 토글 + 현재 페이지 네비 active 상태
+   ├─ js/main.js                   # 상단 내비 모바일 드롭다운 토글 + 현재 페이지 active 상태
    ├─ js/rotator.js                # 홈 화면 인터랙티브 차량 로테이터 로직
+   ├─ fonts/                       # Kia Signature 폰트 (Light/Regular/Bold, 로컬 임베드)
    └─ img/                         # 실제 이미지 에셋을 넣을 폴더 (현재 비어있음)
 ```
+
+## 내비게이션 & 타이포그래피
+
+- 상단 고정 가로 내비게이션바(`<header class="topnav">`)로 구성되어 있습니다. 항목이 많아 좁은 화면에서는 자동으로 가로 스크롤되고, 880px 이하에서는 햄버거 버튼을 눌러 드롭다운으로 펼쳐집니다.
+- 전 페이지 폰트는 외부 CDN 없이 `assets/fonts/`에 포함된 Kia Signature(Light 300 / Regular 400 / Bold 700)를 `@font-face`로 로컬 임베드해서 사용합니다. 네트워크 연결 없이도 폰트가 항상 동일하게 보입니다.
 
 각 페이지는 완전히 독립된 HTML 파일이라, 챕터 하나만 링크로 공유하거나 별도로 수정해도 다른 페이지에 영향이 없습니다. 공통 스타일/스크립트는 `assets/`를 같이 불러오는 구조입니다.
 

@@ -1,21 +1,17 @@
-// THE GARAGE KEY — shared site behavior (mobile nav + active link state)
+// THE GARAGE KEY — shared site behavior (top nav dropdown + active link state)
 (function () {
-  const sidebar = document.getElementById('sidebar');
+  const navList = document.getElementById('navList');
   const menuBtn = document.getElementById('menuBtn');
-  const scrim = document.getElementById('scrim');
 
   function closeNav() {
-    if (!sidebar || !scrim) return;
-    sidebar.classList.remove('open');
-    scrim.classList.remove('show');
+    if (!navList) return;
+    navList.classList.remove('open');
   }
 
-  if (menuBtn && sidebar && scrim) {
+  if (menuBtn && navList) {
     menuBtn.addEventListener('click', () => {
-      sidebar.classList.toggle('open');
-      scrim.classList.toggle('show');
+      navList.classList.toggle('open');
     });
-    scrim.addEventListener('click', closeNav);
   }
 
   // Mark the current page's nav link as active by comparing file names.
@@ -30,5 +26,10 @@
       a.classList.add('active');
     }
     a.addEventListener('click', closeNav);
+  });
+
+  // close the mobile dropdown if the viewport is resized back to desktop
+  window.addEventListener('resize', () => {
+    if (window.innerWidth > 880) closeNav();
   });
 })();
