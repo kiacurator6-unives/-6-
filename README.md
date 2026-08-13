@@ -74,7 +74,7 @@ python3 -m http.server 8080
 
 `index.html` 사이드바 하단의 "큐레이터 자기소개" 버튼으로만 연결되는 별도 페이지입니다 (01~10 챕터 내비게이션에는 포함되어 있지 않습니다). 기아 / 운영사무국 / 큐레이터 세 섹션으로 나뉘어 있고, 각자 이름·역할·한 줄 소개를 입력해서 카드로 등록할 수 있습니다.
 
-**백엔드: 구글 시트 연동.** 별도 서버 없이, 구글 시트 + Apps Script Web App을 가벼운 백엔드로 씁니다. 설정 방법은 **[GOOGLE_SHEETS_SETUP.md](./GOOGLE_SHEETS_SETUP.md)**에 5분이면 끝나는 순서로 정리해뒀습니다. 설정 전에는 자동으로 "로컬 전용 모드"로 동작해서(입력한 브라우저에만 저장) 사이트가 깨지지 않고, `assets/js/intro-config.js`에 배포한 웹 앱 URL만 붙여넣으면 바로 "구글 시트 연동 모드"로 전환됩니다.
+**백엔드: Supabase 연동.** 별도 서버 없이, 무료 백엔드 서비스인 [Supabase](https://supabase.com)를 데이터베이스 + 사진 저장소로 씁니다. 설정 방법은 **[SUPABASE_SETUP.md](./SUPABASE_SETUP.md)**에 10분이면 끝나는 순서로 정리해뒀습니다. 설정 전에는 자동으로 "로컬 전용 모드"로 동작해서(입력한 브라우저에만 저장) 사이트가 깨지지 않고, `assets/js/intro-config.js`에 Supabase 프로젝트 URL과 anon 키만 붙여넣으면 바로 "Supabase 연동 모드"로 전환됩니다.
 
 ## 홈 화면 인터랙티브 차량
 

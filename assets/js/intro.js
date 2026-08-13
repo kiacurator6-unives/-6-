@@ -1,30 +1,40 @@
 // THE GARAGE KEY — self-introduction page
 //
 // Data layer has two modes, chosen automatically based on
-// GARAGE_KEY_SHEET_API_URL (set in assets/js/intro-config.js):
+// GARAGE_KEY_SUPABASE_URL / GARAGE_KEY_SUPABASE_ANON_KEY (set in
+// assets/js/intro-config.js):
 //
-// 1. SHEET MODE (API URL configured): entries (including photos) are read
-//    from and written to a Google Sheet + Drive via a Google Apps Script
-//    Web App, so everyone who opens this page sees everyone else's entries.
-//    See GOOGLE_SHEETS_SETUP.md — the Apps Script there saves uploaded
-//    photos into a Drive folder and stores the resulting public URL in the
-//    sheet's photoUrl column.
+// 1. SUPABASE MODE (both values configured): entries (including photos) are
+//    read from and written to a Supabase table + storage bucket, so
+//    everyone who opens this page sees everyone else's entries.
+//    See SUPABASE_SETUP.md.
 //
-// 2. LOCAL MODE (no API URL yet): falls back to localStorage, which is
+// 2. LOCAL MODE (not configured yet): falls back to localStorage, which is
 //    per-browser only. Photos are stored as compressed base64 data URLs
 //    directly in localStorage (fine for a handful of small images).
 
 (function () {
   const SECTIONS = ['kia', 'office', 'curator'];
   const STORAGE_PREFIX = 'garagekey-intro-';
-  const API_URL = (typeof GARAGE_KEY_SHEET_API_URL === 'string' ? GARAGE_KEY_SHEET_API_URL : '').trim();
-  const SHEET_MODE = API_URL.length > 0;
+  const SUPABASE_URL = (typeof GARAGE_KEY_SUPABASE_URL === 'string' ? GARAGE_KEY_SUPABASE_URL : '').trim();
+  const SUPABASE_ANON_KEY = (typeof GARAGE_KEY_SUPABASE_ANON_KEY === 'string' ? GARAGE_KEY_SUPABASE_ANON_KEY : '').trim();
+  const SUPABASE_MODE = SUPABASE_URL.length > 0 && SUPABASE_ANON_KEY.length > 0;
+  const PHOTO_BUCKET = 'intro-photos';
 
   const MAX_PHOTO_DIMENSION = 480; // px, longest side after resize
   const PHOTO_JPEG_QUALITY = 0.82;
 
+  let sb = null;
+  if (SUPABASE_MODE) {
+    if (window.supabase && typeof window.supabase.createClient === 'function') {
+      sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    } else {
+      console.error('Supabase client library did not load — check the CDN <script> tag in intro.html.');
+    }
+  }
+
   let cache = { kia: [], office: [], curator: [] };
-  // per-form pending photo, keyed by section: { dataUrl, base64, mime } | null
+  // per-form pending photo, keyed by section: { blob, previewUrl } | null
   let pendingPhoto = { kia: null, office: null, curator: null };
 
   // ---------- local (per-browser) storage fallback ----------
@@ -44,31 +54,40 @@
     }
   }
 
-  // ---------- Google Sheet backend ----------
-  async function fetchAllFromSheet() {
-    const res = await fetch(API_URL, { method: 'GET' });
-    const text = await res.text();
-    const data = JSON.parse(text);
-    if (!data.ok) throw new Error(data.error || 'sheet returned an error');
-    return data.entries || [];
+  // ---------- Supabase backend ----------
+  async function fetchAllFromSupabase() {
+    const { data, error } = await sb
+      .from('intros')
+      .select('section,name,role,message,photo_url,created_at')
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    return data || [];
   }
 
-  async function postToSheet(section, entry) {
-    // text/plain avoids a CORS preflight request, which Apps Script Web Apps
-    // don't reliably support — see GOOGLE_SHEETS_SETUP.md for details.
-    const res = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ section, ...entry }),
+  async function uploadPhotoToSupabase(section, blob) {
+    const path = `${section}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+    const { error: upErr } = await sb.storage.from(PHOTO_BUCKET).upload(path, blob, {
+      contentType: 'image/jpeg',
+      upsert: false,
     });
-    const text = await res.text();
-    const data = JSON.parse(text);
-    if (!data.ok) throw new Error(data.error || 'sheet rejected the entry');
-    return data;
+    if (upErr) throw upErr;
+    const { data } = sb.storage.from(PHOTO_BUCKET).getPublicUrl(path);
+    return data.publicUrl;
+  }
+
+  async function insertToSupabase(section, entry, photoUrl) {
+    const { error } = await sb.from('intros').insert({
+      section,
+      name: entry.name,
+      role: entry.role,
+      message: entry.message,
+      photo_url: photoUrl || null,
+    });
+    if (error) throw error;
   }
 
   // ---------- photo handling ----------
-  function resizeAndEncode(file) {
+  function resizeImage(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onerror = () => reject(new Error('file read failed'));
@@ -88,12 +107,17 @@
           canvas.height = height;
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL('image/jpeg', PHOTO_JPEG_QUALITY);
-          resolve({
-            dataUrl,
-            base64: dataUrl.split(',')[1],
-            mime: 'image/jpeg',
-          });
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                reject(new Error('canvas toBlob failed'));
+                return;
+              }
+              resolve({ blob, previewUrl: canvas.toDataURL('image/jpeg', PHOTO_JPEG_QUALITY) });
+            },
+            'image/jpeg',
+            PHOTO_JPEG_QUALITY
+          );
         };
         img.src = reader.result;
       };
@@ -118,9 +142,9 @@
         return;
       }
       try {
-        const encoded = await resizeAndEncode(file);
-        pendingPhoto[section] = encoded;
-        preview.src = encoded.dataUrl;
+        const resized = await resizeImage(file);
+        pendingPhoto[section] = resized;
+        preview.src = resized.previewUrl;
         preview.classList.add('show');
         clearBtn.classList.add('show');
         pickerLabel.textContent = '다른 사진 선택';
@@ -148,7 +172,7 @@
   }
 
   function renderAvatar(entry) {
-    const photo = entry.photo || entry.photoUrl || '';
+    const photo = entry.photo || entry.photo_url || '';
     if (photo) {
       return `<img class="avatar" src="${escapeHtml(photo)}" alt="${escapeHtml(entry.name)}">`;
     }
@@ -158,7 +182,7 @@
 
   function renderCard(entry, index, section) {
     const roleHtml = entry.role ? `<span class="role">${escapeHtml(entry.role)}</span>` : '';
-    const deleteBtn = SHEET_MODE ? '' : `<button type="button" class="danger remove">삭제</button>`;
+    const deleteBtn = SUPABASE_MODE ? '' : `<button type="button" class="danger remove">삭제</button>`;
     return `
       <div class="intro-card" data-index="${index}">
         ${renderAvatar(entry)}
@@ -199,10 +223,10 @@
   function renderModeNote() {
     const noteEl = document.getElementById('intro-mode-note');
     if (!noteEl) return;
-    if (SHEET_MODE) {
-      noteEl.innerHTML = `<div><b>안내</b>모든 사람에게 실시간으로 공유되는 구글 시트에 연결되어 있어요. 자유롭게 소개(+사진)를 남겨주세요.</div>`;
+    if (SUPABASE_MODE) {
+      noteEl.innerHTML = `<div><b>안내</b>모든 사람에게 실시간으로 공유되는 데이터베이스에 연결되어 있어요. 자유롭게 소개(+사진)를 남겨주세요.</div>`;
     } else {
-      noteEl.innerHTML = `<div><b>안내</b>아직 구글 시트 연동 전이라, 지금 입력하는 내용은 <strong>내 브라우저에만</strong> 저장돼요. 다른 사람에게도 보이게 하려면 카드의 "복사하기" 버튼으로 내용을 복사해서 운영 카카오톡 채널로 전달해주세요.</div>`;
+      noteEl.innerHTML = `<div><b>안내</b>아직 백엔드 연동 전이라, 지금 입력하는 내용은 <strong>내 브라우저에만</strong> 저장돼요. 다른 사람에게도 보이게 하려면 카드의 "복사하기" 버튼으로 내용을 복사해서 운영 카카오톡 채널로 전달해주세요.</div>`;
     }
   }
 
@@ -211,7 +235,7 @@
     renderModeNote();
     SECTIONS.forEach((s) => renderSection(s, 'loading'));
 
-    if (!SHEET_MODE) {
+    if (!SUPABASE_MODE || !sb) {
       SECTIONS.forEach((s) => {
         cache[s] = loadLocal(s);
         renderSection(s);
@@ -220,14 +244,14 @@
     }
 
     try {
-      const all = await fetchAllFromSheet();
+      const all = await fetchAllFromSupabase();
       SECTIONS.forEach((s) => (cache[s] = []));
       all.forEach((entry) => {
         if (cache[entry.section]) cache[entry.section].push(entry);
       });
       SECTIONS.forEach((s) => renderSection(s));
     } catch (err) {
-      console.error('intro sheet load failed', err);
+      console.error('intro supabase load failed', err);
       SECTIONS.forEach((s) => renderSection(s, 'error'));
     }
   }
@@ -282,22 +306,16 @@
 
       setFormBusy(form, true);
       try {
-        if (SHEET_MODE) {
-          const payload = { name, role, message };
+        if (SUPABASE_MODE && sb) {
+          let photoUrl = '';
           if (photo) {
-            payload.photoBase64 = photo.base64;
-            payload.photoMime = photo.mime;
+            photoUrl = await uploadPhotoToSupabase(section, photo.blob);
           }
-          const result = await postToSheet(section, payload);
-          cache[section].push({
-            name,
-            role,
-            message,
-            photo: result.photoUrl || '',
-          });
+          await insertToSupabase(section, { name, role, message }, photoUrl);
+          cache[section].push({ name, role, message, photo_url: photoUrl });
         } else {
           const entries = loadLocal(section);
-          entries.push({ name, role, message, photo: photo ? photo.dataUrl : '' });
+          entries.push({ name, role, message, photo: photo ? photo.previewUrl : '' });
           saveLocal(section, entries);
           cache[section] = entries;
         }
@@ -367,7 +385,7 @@
         const roleTxt = entry.role ? ` (${entry.role})` : '';
         const text = `[${sectionLabel(section)}] ${entry.name}${roleTxt}\n${entry.message}`;
         copyText(text, btn);
-      } else if (btn.classList.contains('remove') && !SHEET_MODE) {
+      } else if (btn.classList.contains('remove') && !SUPABASE_MODE) {
         const entries = loadLocal(section);
         entries.splice(index, 1);
         saveLocal(section, entries);
