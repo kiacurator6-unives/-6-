@@ -41,6 +41,8 @@ body{
   font-family:'Kia Signature',sans-serif;font-weight:400;
   font-size:16px;line-height:1.62;
   -webkit-font-smoothing:antialiased;
+  word-break:keep-all;
+  overflow-wrap:break-word;
 }
 h1,h2,h3,.display{font-family:'Kia Signature',sans-serif;font-weight:700;}
 .mono{font-family:'Kia Signature',sans-serif;font-weight:700;letter-spacing:.06em;}
