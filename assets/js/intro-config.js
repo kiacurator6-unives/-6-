@@ -10,4 +10,4 @@
 // Leave it as an empty string to keep the page running in local-only mode
 // (entries only visible in the browser that typed them).
 
-const GARAGE_KEY_SHEET_API_URL = "https://script.google.com/macros/s/AKfycbxedk8OEauQTn7Y5PUFDpdjrTsXsuROfHlQLqKUWxY5bc3hRnFf0w9XeqNjpqOysBn-Jw/exec";
+const GARAGE_KEY_SHEET_API_URL = "https://script.google.com/macros/s/AKfycbwKrC-KiJj3WM9HNBQipze7yvDchreuMZoaqlrZgv4zuQg-Qq0rS-2Pe3jfJUHwK2U6qA/exec";
