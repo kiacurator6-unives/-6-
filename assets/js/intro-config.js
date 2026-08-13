@@ -9,5 +9,5 @@
 // Leave either one empty to keep the page running in local-only mode
 // (entries only visible in the browser that typed them).
 
-const GARAGE_KEY_SUPABASE_URL = "";
-const GARAGE_KEY_SUPABASE_ANON_KEY = "";
+const GARAGE_KEY_SUPABASE_URL = "https://ohecapndfyktrghdyfdo.supabase.co";
+const GARAGE_KEY_SUPABASE_ANON_KEY = "sb_publishable_1y-D5TNq2yaWNdICCT0mlQ_ILo_f3M6";
